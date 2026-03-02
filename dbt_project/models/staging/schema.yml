@@ -1,0 +1,43 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: flight_searches
+        description: "Raw JSONB payloads from SerpApi Google Flights API"
+        columns:
+          - name: search_id
+            description: "Deterministic MD5 idempotency key"
+            tests:
+              - not_null
+              - unique
+          - name: origin
+            tests: [not_null]
+          - name: destination
+            tests: [not_null]
+          - name: departure_date
+            tests: [not_null]
+          - name: run_date
+            tests: [not_null]
+          - name: raw_payload
+            tests: [not_null]
+
+models:
+  - name: stg_flights
+    description: "Exploded and deduplicated flight offers from raw JSONB"
+    columns:
+      - name: search_id
+        tests: [not_null]
+      - name: origin
+        tests: [not_null]
+      - name: destination
+        tests: [not_null]
+      - name: departure_date
+        tests: [not_null]
+      - name: airline
+        tests: [not_null]
+      - name: price_usd
+        description: "Ticket price in USD"
+        tests:
+          - not_null

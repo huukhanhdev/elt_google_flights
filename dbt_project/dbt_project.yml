@@ -1,0 +1,23 @@
+name: 'flight_pipeline'
+version: '1.0.0'
+config-version: 2
+
+profile: 'flight_pipeline'
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  flight_pipeline:
+    staging:
+      +schema: staging
+      +materialized: view
+    mart:
+      +schema: mart
+      +materialized: table
