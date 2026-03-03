@@ -39,6 +39,7 @@ A production-like **end-to-end ELT pipeline** that ingests real Google Flights d
 | Storage | PostgreSQL 15 (JSONB raw layer) |
 | Transformation | dbt (`staging` views → `mart` tables) |
 | Orchestration | Apache Airflow 2.8.1 |
+| Visualization | **Metabase** (dashboard, no-code, Docker) |
 | Infrastructure | Docker Compose |
 | Testing | `pytest` (integration tests, real API calls) |
 
@@ -101,6 +102,7 @@ docker-compose up -d
 |---|---|---|
 | Airflow UI | http://localhost:8081 | admin / admin |
 | PostgreSQL | localhost:5434 | see `.env` |
+| **Metabase** | **http://localhost:3000** | set on first login |
 
 ### 4. Trigger the pipeline
 Airflow UI → **flight_price_pipeline** → ▶ **Trigger DAG**
@@ -127,7 +129,29 @@ Before calling SerpApi, the pipeline checks whether a route-date combination was
 | `price_trends` | `LAG() OVER (...)`, running `MIN() OVER (...)` — day-over-day delta |
 
 ### Retry Logic
-API calls use `tenacity` with exponential backoff (3 attempts, 2–10s wait). Airflow tasks also have `retries=2` with a 5-minute delay.
+API calls use `tenacity` with exponential backoff (3 attempts, 2–10s wait). Only retries on transient network errors — not 400 client errors (avoids wasting API quota on unrecoverable failures).
+
+---
+
+## 📊 Metabase Dashboard
+
+Metabase connects directly to PostgreSQL and lets you build charts with zero code.
+
+**First-time setup (one-time, ~2 min):**
+1. Open **http://localhost:3000** → complete the setup wizard
+2. Add database → **PostgreSQL** → host: `postgres`, port: `5432`, db/user/pass from `.env`
+3. Browse the **mart** schema — `cheapest_routes` and `price_trends` are ready
+
+**Suggested charts:**
+
+| Chart type | Table | Config |
+|---|---|---|
+| Bar chart | `mart.cheapest_routes` | Group by `airline`, metric = `MIN(price_usd)` |
+| Line chart | `mart.price_trends` | X = `run_date`, Y = `avg_price_usd`, filter by route |
+| Table | `mart.cheapest_routes` | Filter `price_rank = 1`, sort by `price_usd ASC` |
+| Big number | `mart.price_trends` | Count of rows where `is_new_low = true` |
+
+> Use **New → SQL query** in Metabase to paste any of the sample queries below.
 
 ---
 
