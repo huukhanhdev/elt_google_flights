@@ -126,6 +126,7 @@ class SerpApiClient:
             "departure_id": origin,
             "arrival_id": destination,
             "outbound_date": departure_date.strftime("%Y-%m-%d"),
+            "type": "2",       # 1 = round trip (requires return_date), 2 = one-way
             "currency": "USD",
             "hl": "en",
             "api_key": self.api_key,
