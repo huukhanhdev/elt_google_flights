@@ -109,14 +109,17 @@ class SerpApiClient:
     @retry(
         stop=stop_after_attempt(MAX_RETRIES),
         wait=wait_exponential(multiplier=1, min=WAIT_MIN_SECONDS, max=WAIT_MAX_SECONDS),
-        retry=retry_if_exception_type(requests.exceptions.RequestException),
+        retry=retry_if_exception_type(requests.exceptions.ConnectionError)
+        | retry_if_exception_type(requests.exceptions.Timeout)
+        | retry_if_exception_type(requests.exceptions.ChunkedEncodingError),
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
     def _call_api(self, origin: str, destination: str, departure_date: date) -> Dict[str, Any]:
         """
         Call SerpApi Google Flights endpoint with retry.
-        Raises requests.exceptions.RequestException on transient errors.
+        Only retries on transient network errors (timeout, connection dropped).
+        Does NOT retry on 400/429 — those are permanent / quota errors.
         """
         params = {
             "engine": SERPAPI_ENGINE,
@@ -131,8 +134,17 @@ class SerpApiClient:
         response = self.session.get(SERPAPI_BASE_URL, params=params, timeout=30)
 
         if response.status_code == 429:
-            logger.warning("Rate limited by SerpApi. Will retry.")
-            raise requests.exceptions.RequestException("429 Too Many Requests")
+            logger.warning("Rate limited by SerpApi (429). Will retry.")
+            raise requests.exceptions.ConnectionError("429 Too Many Requests — treated as transient")
+
+        if response.status_code == 400:
+            try:
+                detail = response.json().get("error", response.text)
+            except Exception:
+                detail = response.text
+            logger.error("SerpApi 400 Bad Request for %s→%s on %s: %s", origin, destination, departure_date, detail)
+            raise ValueError(f"SerpApi 400: {detail}")  # ValueError → không retry
+
         response.raise_for_status()
 
         data = response.json()
